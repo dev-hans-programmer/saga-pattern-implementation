@@ -1,0 +1,83 @@
+name: fastapi-saga-demo
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  environment:
+    RABBITMQ_URL: amqp://saga:saga@rabbitmq:5672/
+    LOG_LEVEL: INFO
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+  networks: [saga-network]
+
+x-healthcheck: &http-healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 10
+  start_period: 5s
+
+services:
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: saga
+      RABBITMQ_DEFAULT_PASS: saga
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [saga-network]
+
+  order-service:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: services/order/Dockerfile
+    ports:
+      - "8001:8000"
+    healthcheck:
+      <<: *http-healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+
+  inventory-service:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: services/inventory/Dockerfile
+    ports:
+      - "8002:8000"
+    healthcheck:
+      <<: *http-healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+
+  payment-service:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: services/payment/Dockerfile
+    ports:
+      - "8003:8000"
+    healthcheck:
+      <<: *http-healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+
+  shipping-service:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: services/shipping/Dockerfile
+    ports:
+      - "8004:8000"
+    healthcheck:
+      <<: *http-healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+
+networks:
+  saga-network:
+    driver: bridge
+
